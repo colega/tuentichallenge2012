@@ -1,0 +1,82 @@
+import sys;
+from operator import itemgetter
+
+def printRelationMatrix(rm,charSet):
+	s = '   ';
+	for char in charSet:
+		s+= "  %s" % char;
+	s+='\n';
+	for i,row in enumerate(rm):
+		first = True;
+		s+= " %s "%charSet[i];
+		for rel in rm[row]:
+			s+= '%3d'%rm[row][rel];
+		s+='\n';
+	print s;
+			
+
+def main():
+	data = [];
+	charSet = set();
+	for line in sys.stdin:
+		data += [line.strip()];
+		for char in line.strip():
+			charSet.add(char);
+	# We need a list of chars, because we don't know if set() retreives
+	# the element in the same order each time
+	charSet = list(charSet);
+	charSetOrder = dict(zip(charSet, range(len(charSet))));
+	# relationMatrix rm 
+	rm = dict();
+	charSetLength = len(charSet);
+	for char in charSet:
+		rmRow = dict();
+		for rowchar in charSet:
+			rmRow[rowchar] = 0;
+		rm[char] = rmRow;
+	print rm
+	
+	
+	for relation in data:
+		for i,rela in enumerate(relation[:-1]):
+			for j,relb in enumerate(relation[i+1]):
+				if(charSetOrder[rela] < charSetOrder[relb]):
+					rm[rela][relb] = -1;
+				else:
+					rm[relb][rela] = 1;
+	printRelationMatrix(rm,charSet);
+	counter = 0;
+	#
+	# Applying the transitive rule to the matrix, a<b, b<c => a<c
+	# We really don't need to check
+	for i,chara in enumerate(charSet):
+		for j,charb in enumerate(charSet):
+			if (chara != charb):
+				if (rm[chara][charb] < 0):
+					for k,charc in enumerate(charSet):
+						counter += 1;
+						if (rm[charc][chara] < 0):
+							if (rm[charc][charb] >= 0):
+								print "this is a new relation";
+								rm[charc][charb] = -1;
+				elif (rm[chara][charb] > 0):
+					for charc in charSet:
+						counter += 1;
+						if (rm[charc][chara] > 0):
+							if (rm[charc][charb] <= 0):
+								print "this is a new relation";
+								rm[charc][charb] = 1;
+	
+	print "counter",counter;
+	print pow(charSetLength, 3);	
+	printRelationMatrix(rm,charSet);
+							
+	relationOrder = [];
+	for char in charSet:
+		relationOrder  += [(sum(list(rm[char].values())),char)];
+	relationOrder = sorted(relationOrder, key=itemgetter(0));
+	print relationOrder;
+		
+			
+if __name__ == '__main__':
+	main();

@@ -1,0 +1,83 @@
+import sys;
+import md5;
+from itertools import groupby;
+from multiprocessing import Process, Queue;
+from operator import itemgetter;
+
+def processQueue(hasher, queueString, adjustments, currentAdjustment, maxQueueStringSize, maxProcesses):
+	if (currentAdjustment >= len(adjustments)):
+		hasher.update(queueString);
+	elif ( len(queueString) > 0):
+		queueLength = len(queueString);
+		if (queueLength > maxQueueStringSize):
+#			print "splitting queue";
+			queueList = [queueString[i*maxQueueStringSize:min(queueLength,(i+1)*maxQueueStringSize)] for i in range(queueLength/maxQueueStringSize+1)];
+			for q in queueList:
+				processQueue(hasher, q, adjustments, currentAdjustment, maxQueueStringSize, maxProcesses);
+		else:
+			a = adjustments[currentAdjustment];
+			q = Queue();
+			p = [];
+			dataSize = max(queueLength/maxProcesses,1);
+			s = [queueString[i*dataSize:min(queueLength,(i+1)*dataSize)] for i in range(queueLength/dataSize+1)];
+#			print "lets process:",queueString,"so we splitted it",s;
+			i = 0;
+			while i < len(s) and s[i]:
+				process = Process(target=rawProcess, args=(i,q,s[i],a));
+				process.start();
+				p.append(process);
+				i+=1;
+#			print "processes:",len(p);
+			results = 0;
+			processedData = [];
+			while (results < i):
+				processedData.append(q.get());
+				results += 1;
+			
+			
+			processedData = sorted(processedData, key=itemgetter(0));
+#			print processedData;
+#			for t in a:
+#				queueString = queueString.replace(t,a[t]);
+#			processed = '';
+#			for p in processedData:
+#				processed += p[1];
+#			print queueString,processed,queueString==processed;
+#			if (queueString!=processed):
+#				raise;
+			for data in processedData:
+				processQueue(hasher,data[1],adjustments,currentAdjustment+1,maxQueueStringSize, maxProcesses);
+
+def rawProcess(i,q,s,a):		
+#	print a;
+#	print s,type(s);
+	for t in a:
+		s = s.replace(t,a[t]);
+#	print "putting...";
+	q.put((i,s));
+#	print
+#	print "finished!!",i,s;
+#	print 
+
+def main():
+	maxQueueStringSize = 1024*1024*512;
+	maxProcesses = 8;
+	
+	queueString = sys.stdin.next().strip();
+	adjustments = [];
+	for line in sys.stdin:
+		parsed = line.strip().split(',');
+		transformations = dict();
+		for transformation in parsed:
+			splitted = transformation.split('=>');
+			transformations[splitted[0]] = splitted[1];
+		adjustments.append(transformations);
+	
+	m = md5.new();
+	processQueue(m,queueString,adjustments,0,maxQueueStringSize, maxProcesses);
+	print m.hexdigest();
+		
+		
+		
+if __name__ == '__main__':
+	main();

@@ -1,0 +1,56 @@
+import sys;
+import md5;
+from itertools import groupby;
+from multiprocessing import Process, Queue;
+from operator import itemgetter;
+
+def recursive(hasher,s,adj,level):
+	while (level < len(adj) and len(s) < 1024*1024):
+		for t in adj[level]:
+			s = s.replace(t,adj[level][t]);
+		level+=1;
+	if (level<len(adj)):
+		for char in s:
+			recursive(hasher,char,adj,level);
+	else:
+		hasher.update(s);
+
+
+class Transformation:
+	def __init__(self,s):
+		self.l = []
+		for c in s:
+			self.l += [[c,1]]
+
+def main():
+	maxQueueStringSize = 1024*1024;
+	maxProcesses = 8;
+	
+	queueString = sys.stdin.next().strip();
+	queueLength = len(queueString);
+	queueList = [queueString[i*maxQueueStringSize:min(queueLength,(i+1)*maxQueueStringSize)] for i in range(queueLength/maxQueueStringSize+1)];
+#	print "queue:",queueString;
+	adjustments = [];
+	for line in sys.stdin:
+		parsed = line.strip().split(',');
+		transformations = dict();
+		for transformation in parsed:
+			splitted = transformation.split('=>');
+			transformations[splitted[0]] = splitted[1];
+		adjustments.append(transformations);
+
+	hasher = md5.new();
+	f = open('out','a');
+	f.write(str(len(queueString))+" "+str(len(adjustments)));
+	f.close();
+	for char in queueString:
+		recursive(hasher,char,adjustments,0);
+		f = open('out0','a');
+		f.write(char);
+		f.close();
+	print hasher.hexdigest();
+		
+		
+		
+if __name__ == '__main__':
+	main();
