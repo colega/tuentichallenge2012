@@ -1,7 +1,7 @@
 import sys;
 import fileinput;
 import binascii
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Event
 from Crypto.Cipher import DES,AES
 from time import time
 
@@ -26,36 +26,45 @@ def removePadding(ts):
 
 # Function for processes. Makes brute force over DES with "weak" keys
 # By the way, "weak" keys has a special meaning
-def keysFinder(games, queue):
+def keysFinder(message, games, queue, found):
+	binmessage = binascii.unhexlify(message);
 	chars = range(48, 58, 2)  + range(97, 123,2);
-	keys = [];
-	for game in games:
-		found = False;
-		bingame = binascii.unhexlify(game);
-		for i in chars:
-			for j in chars:
-				for k in chars:
-					for l in chars:
-						key = chr(i)+chr(j)+chr(k)+chr(l);
+	charsCount = len(chars);
+	gamesCount = len(games);
+	g = 0;
+	boolFound = False;
+	while (g < gamesCount and not found.is_set()):
+		# if ((g << 5) & 1 > 0):
+		# boolFound = ;
+		bingame = binascii.unhexlify(games[g]);
+		i = 0;
+		gameDecrypted = False;
+		while (i < charsCount and not gameDecrypted):
+			j = 0;
+			while (j < charsCount and not gameDecrypted):
+				k = 0;
+				while (k < charsCount and not gameDecrypted):
+					l = 0;
+					while (l < charsCount and not gameDecrypted):
+						key = chr(chars[i])+chr(chars[j])+chr(chars[k])+chr(chars[l]);
 						x = DES.new(key+'0000');
 						dec = x.decrypt(bingame);
 						# If it starts with Key= search for Puzzle
 						if (dec[:4] == 'Key='):
 							if (dec.count('Puzzle')>0):
-								found = True;
-								splitted = dec.split(' & ');
-								puzzlekey = splitted[0].split('=')[1];
-								keys += [puzzlekey];
-					if found:
-						break;
-				if found:
-					break;
-			if found: 
-				break;
-		if not found:
-			raise BaseException("Key not found");
-	# Put found keys in the queue
-	queue.put(keys);
+								gameDecrypted = True;
+								# Try this key to decrypt the message, if it decrpyts, stop all other threads
+								puzzlekey = dec.split(' & ')[0].split('=')[1];
+								x = AES.new(puzzlekey);
+								dec = x.decrypt(binmessage);
+								if (isCorrect(dec)):
+									found.set();
+									queue.put(removePadding(dec.strip()));
+						l += 1;
+					k += 1;
+				j += 1;
+			i += 1;
+		g += 1;
 
 def main():
 	# Threads we will use, don't change this because each thread calculates keys for 100 games exactly
@@ -66,29 +75,17 @@ def main():
 		# Parsing the stdin
 		encryptedMessage,encryptedGames = line.strip().split(':');
 		encryptedGames = encryptedGames.split('~');
-		# Queue with keys
+		# Queue with decrpyted message
 		q = Queue();
+		found = Event();
 		# Threads
 		for i in range(10):
-			p = Process(target=keysFinder, args=(encryptedGames[i*100:(i+1)*100],q));
+			p = Process(target=keysFinder, args=(encryptedMessage, encryptedGames[i*100:(i+1)*100],q, found));
 			p.start();
-		# Number of threads already finished
-		finished = 0;
-		keys = [];
-		while finished < threads:
-			keys += q.get();
-			finished+=1;
+		message = q.get();
+		found.set();
+		print message;
 
-		# From all keys, try which one decrypts a valid message
-		em = binascii.unhexlify(encryptedMessage);
-		found = False;
-		for key in keys:
-			x = AES.new(key);
-			dec = x.decrypt(em);
-			if (isCorrect(dec)):
-				found = True;
-				# Make unpadding and print. Voila!
-				print removePadding(dec.strip());
 	if (sys.argv[1] == 'benchmark'):
 		print "Time elapsed: ",time()-start;
 		
